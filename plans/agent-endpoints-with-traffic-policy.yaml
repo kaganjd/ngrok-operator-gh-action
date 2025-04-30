@@ -5,29 +5,15 @@ plans:
         chart: ./charts/app
         release-name: game2048
         namespace: default
+        set:
+          ngrokEndpoints.url: https://$NGROK_URL:443
+          ingress.host: $NGROK_URL
         values-files:
           - "./charts/app/values/disable-ingress.yaml"
           - "./charts/app/values/enable-aep-crds.yaml"
-          - "./charts/app/values/enable-aep-traffic-policy.yaml"
+          - "./charts/app/values/enable-aep-crd-traffic-policy.yaml"
     tests:
       - wait-url-ready:
-          url: https://app-{{.InstanceNumber}}-k8s-test.ngrok.app
-          interval: 10s
-          retries: 30
-          expected-status-code: 302
-  - name: "Test Plan 2"
-    install:
-      helm:
-        chart: ./charts/app
-        release-name: game2048
-        namespace: default
-        values-files:
-          - "./charts/app/values/disable-ingress.yaml"
-          - "./charts/app/values/enable-aep-crds.yaml"
-          - "./charts/app/values/enable-aep-traffic-policy.yaml"
-    tests:
-      - wait-url-ready:
-          url: https://app-{{.InstanceNumber}}-k8s-test.ngrok.app
-          interval: 10s
-          retries: 30
+          url: https://$NGROK_URL
+          retries: 5
           expected-status-code: 302

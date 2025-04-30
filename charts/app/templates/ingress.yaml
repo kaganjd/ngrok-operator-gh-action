@@ -25,7 +25,7 @@ spec:
     {{- end }}
   {{- end }}
   rules:
-    - host: {{ include "app.fullname" . }}-k8s-test.ngrok.app
+    - host: {{ .Values.ingress.host }}
       http:
         paths:
           - path: /

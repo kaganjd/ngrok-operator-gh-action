@@ -3,7 +3,6 @@ module github.com/ngrok-private/test-ngrok-operator-gh-action
 go 1.23.1
 
 require (
-	github.com/ngrok/ngrok-api-go/v7 v7.2.0
 	golang.org/x/sync v0.11.0
 	gopkg.in/yaml.v3 v3.0.1
 )

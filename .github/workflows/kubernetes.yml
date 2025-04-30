@@ -1,11 +1,11 @@
-name: GHA e2e Test
+name: ngrok Operator demo
 on:
   workflow_dispatch:
     inputs:
       plan:
         description: "Test plan to run"
         required: true
-        default: "plans/gateway.yaml"
+        default: "plans/agent-endpoints-with-traffic-policy.yaml"
 
 jobs:
   deploy:
@@ -25,10 +25,6 @@ jobs:
           go-version: "1.23.5"
       - name: Start k8s cluster
         uses: engineerd/setup-kind@v0.6.2
-      - name: Install Gateway API v1.2.0 & GatewayClass
-        run: |
-          kubectl apply -f manifests/gateway-api-v1.2.0.yaml
-          kubectl apply -f manifests/gateway-class.yaml
       - name: Install Helm
         uses: azure/setup-helm@v4
       - name: Install ngrok Helm chart
@@ -39,10 +35,15 @@ jobs:
           helm install ngrok-operator ngrok/ngrok-operator \
           --create-namespace \
           --namespace ngrok-operator \
-          --version 0.17.0 \
+          --version 0.18.1 \
           --set credentials.apiKey=${{ secrets.NGROK_API_KEY }} \
           --set credentials.authtoken=${{ secrets.NGROK_AUTHTOKEN }}
-      - name: Run Go script (app Helm install, timings, etc)
+      - name: Set ngrok URL
+        run: |
+          NGROK_URL=${{ vars.NGROK_URL }} envsubst < ${{ github.event.inputs.plan }} > tmp && mv tmp ${{ github.event.inputs.plan }}
+        env:
+          NGROK_URL: ${{ vars.NGROK_URL }}
+      - name: Run Go script (app Helm install, etc.)
         run: go run ./... ${{ github.event.inputs.plan }}
         env:
           JOB_NUMBER: ${{ matrix.job-number }}

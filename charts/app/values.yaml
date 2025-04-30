@@ -60,12 +60,9 @@ service:
 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
-  enabled: true
+  enabled: false
   className: "ngrok"
-  annotations:
-    # k8s.ngrok.com/mapping-strategy: endpoints
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
+  host: null
 
 resources:
   {}
@@ -124,15 +121,4 @@ ngrokEndpoints:
   enabled: false
   # If supplied, the traffic policy to apply to the endpoint.
   trafficPolicy: null
-
-gateway:
-  enabled: false
-
-  gatewayClass:
-    create: false # This is applied from the `manifests` directory because it is shared across resources.
-    name: "ngrok"
-    controllerName: "ngrok.com/gateway-controller"
-
-  # Specify this to override the gateway name. Otherwise
-  # one will be generated based off of the release name.
-  name: null
+  url: null

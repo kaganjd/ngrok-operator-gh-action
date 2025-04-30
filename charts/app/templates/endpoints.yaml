@@ -2,11 +2,11 @@
 kind: AgentEndpoint
 apiVersion: ngrok.k8s.ngrok.com/v1alpha1
 metadata:
-  name: {{ include "app.fullname" . }}-k8s-test
+  name: {{ include "app.fullname" . }}
   namespace: {{ .Release.Namespace }}
 spec:
   bindings: []
-  url: "https://{{ include "app.fullname" . }}-k8s-test.ngrok.app:443"
+  url:  {{ .Values.ngrokEndpoints.url }}
   metadata: "{}"
   {{- if .Values.ngrokEndpoints.trafficPolicy }}
   trafficPolicy:

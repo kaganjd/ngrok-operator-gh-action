@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -21,34 +19,46 @@ var (
 	JobNumber   = os.Getenv("JOB_NUMBER")
 )
 
+type Config struct {
+	Plans []Plan `yaml:"plans"`
+}
+
+type Plan struct {
+	Name    string `yaml:"name"`
+	Install struct {
+		Helm *HelmInstall `yaml:"helm,omitempty"`
+	} `yaml:"install"`
+	Tests []*Test `yaml:"tests,omitempty"`
+}
+
+type HelmInstall struct {
+	Chart       string            `yaml:"chart"`
+	ReleaseName string            `yaml:"release-name"`
+	Namespace   string            `yaml:"namespace"`
+	Sets        map[string]string `yaml:"set,omitempty"`
+	ValuesFiles []string          `yaml:"values-files,omitempty"`
+}
+
+type WaitURLReady struct {
+	URL                string `yaml:"url"`
+	Retries            *int   `yaml:"retries,omitempty"`
+	ExpectedStatusCode int    `yaml:"expected-status-code"`
+	Results            struct {
+		Requests struct {
+			Total   int
+			Success int
+		}
+	} `yaml:"results,omitempty"`
+}
+
+type Test struct {
+	WaitURLReady *WaitURLReady `yaml:"wait-url-ready,omitempty"`
+}
+
 func runWaitReadyTest(ctx context.Context, logger *slog.Logger, index int, test *WaitURLReady) error {
-	pollInterval := 1 * time.Second // Default
-	if test.Interval != 0 {
-		pollInterval = test.Interval
-	}
+	pollInterval := 5 * time.Second
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
-
-	testStartTime := time.Now()
-
-	// Grab the URL. It may be interpolated, so grab the variables from the environment
-	// and interpolate them into the URL.
-	url := test.URL
-	tmpl, err := template.New("url").Parse(url)
-	if err != nil {
-		return err
-	}
-	type tmplCtx struct {
-		InstanceNumber int
-	}
-	tctx := tmplCtx{
-		InstanceNumber: index,
-	}
-	var rendered strings.Builder
-	if err := tmpl.Execute(&rendered, tctx); err != nil {
-		return err
-	}
-	url = rendered.String()
 
 	for {
 		select {
@@ -57,7 +67,7 @@ func runWaitReadyTest(ctx context.Context, logger *slog.Logger, index int, test 
 		case <-ticker.C:
 			test.Results.Requests.Total++
 
-			reqLogger := logger.With("url", url, "attempt", test.Results.Requests.Total)
+			reqLogger := logger.With("url", test.URL, "attempt", test.Results.Requests.Total)
 
 			// If a limit on the number of retries is set, we should check the total
 			// number of requests against that limit and fail if we've exceeded it.
@@ -77,7 +87,7 @@ func runWaitReadyTest(ctx context.Context, logger *slog.Logger, index int, test 
 				},
 			}
 
-			req, err := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", test.URL, nil)
 			if err != nil {
 				reqLogger.Error("Failed to create new request", "err", err)
 				continue
@@ -97,13 +107,6 @@ func runWaitReadyTest(ctx context.Context, logger *slog.Logger, index int, test 
 			if resp.StatusCode == test.ExpectedStatusCode {
 				test.Results.Requests.Success++
 				reqLogger.Info("Successfully fetched URL", "successes", test.Results.Requests.Success)
-
-				// Set the Time to Availability(TTA) if not already set
-				if test.Results.Timings.TTA == nil {
-					tta := time.Since(testStartTime)
-					test.Results.Timings.TTA = &tta
-					logger.Info("Time to availability", "tta", test.Results.Timings.TTA)
-				}
 			}
 
 			if test.Results.Requests.Success >= 1 {
@@ -124,7 +127,7 @@ func runPlan(ctx context.Context, logger *slog.Logger, p Plan, index int) error 
 	logger.Info("Running install phase for plan")
 	if p.Install.Helm != nil {
 
-		fullNameOverride := fmt.Sprintf("fullnameOverride=app-%d",
+		fullNameOverride := fmt.Sprintf("fullnameOverride=app-2048-%d",
 			index,
 		)
 
@@ -169,8 +172,8 @@ func runPlan(ctx context.Context, logger *slog.Logger, p Plan, index int) error 
 		// If we've successfully installed the operator, we want to make sure that we will
 		// uninstall it after the test is done.
 		defer func() {
-			chartLogger.Debug("Uninstalling chart in 3 minutes")
-			time.Sleep(3 * time.Minute)
+			chartLogger.Debug("Uninstalling chart in 1 minute")
+			time.Sleep(1 * time.Minute)
 			chartLogger.Debug("Uninstalling chart")
 			cmd := exec.Command(
 				"helm", "uninstall",
